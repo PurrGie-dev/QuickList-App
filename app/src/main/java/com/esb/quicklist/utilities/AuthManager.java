@@ -1,8 +1,14 @@
-package com.esb.quicklist;
+package com.esb.quicklist.utilities;
 
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
+
+import com.esb.quicklist.models.Category;
+import com.esb.quicklist.models.Product;
+import com.esb.quicklist.models.ShoppingList;
+import com.esb.quicklist.models.User;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;

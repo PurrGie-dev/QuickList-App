@@ -1,17 +1,21 @@
-package com.esb.quicklist;
+package com.esb.quicklist.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.esb.quicklist.utilities.AuthManager;
+import com.esb.quicklist.management.ManageListActivity;
+import com.esb.quicklist.R;
+import com.esb.quicklist.models.Product;
+import com.esb.quicklist.models.ShoppingList;
+
 import java.util.ArrayList;
 import java.util.List;
 

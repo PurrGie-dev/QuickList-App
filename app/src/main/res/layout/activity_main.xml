@@ -8,7 +8,7 @@
     android:gravity="center"
     android:padding="24dp"
     android:background="@color/white"
-    tools:context=".MainActivity">
+    tools:context=".activities.MainActivity">
 
     <!-- Welcome Text -->
     <TextView

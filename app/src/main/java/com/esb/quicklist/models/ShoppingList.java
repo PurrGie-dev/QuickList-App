@@ -1,4 +1,4 @@
-package com.esb.quicklist;
+package com.esb.quicklist.models;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,10 +1,14 @@
-package com.esb.quicklist;
+package com.esb.quicklist.management;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.esb.quicklist.utilities.AuthManager;
+import com.esb.quicklist.R;
+import com.esb.quicklist.models.ShoppingList;
+
 import java.util.List;
 
 public class ViewListsActivity extends AppCompatActivity {

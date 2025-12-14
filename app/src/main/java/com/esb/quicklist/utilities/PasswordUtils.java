@@ -1,4 +1,4 @@
-package com.esb.quicklist;
+package com.esb.quicklist.utilities;
 
 import android.text.Editable;
 import android.text.TextUtils;

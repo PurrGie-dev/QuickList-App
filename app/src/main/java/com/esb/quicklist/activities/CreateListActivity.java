@@ -1,4 +1,4 @@
-package com.esb.quicklist;
+package com.esb.quicklist.activities;
 
 import android.os.Bundle;
 import android.view.View;
@@ -7,6 +7,9 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.esb.quicklist.utilities.AuthManager;
+import com.esb.quicklist.R;
 import com.google.android.material.textfield.TextInputLayout;
 
 public class CreateListActivity extends AppCompatActivity {

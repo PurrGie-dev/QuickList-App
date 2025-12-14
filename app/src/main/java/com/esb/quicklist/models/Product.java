@@ -1,4 +1,4 @@
-package com.esb.quicklist;
+package com.esb.quicklist.models;
 
 public class Product {
     private String id;
