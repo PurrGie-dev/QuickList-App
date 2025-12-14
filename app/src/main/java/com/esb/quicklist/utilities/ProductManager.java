@@ -8,8 +8,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -60,7 +60,9 @@ public class ProductManager {
             allProducts.put(product.getListCode(), listProducts);
             saveAllProducts(allProducts);
 
-            Log.d(TAG, "Product added: " + product.getName() + " to list: " + product.getListCode());
+            Log.d(TAG, "✓ Product added: " + product.getName() +
+                    " ID: " + product.getId() +
+                    " to list: " + product.getListCode());
             return true;
         } catch (JSONException e) {
             Log.e(TAG, "Error adding product: " + e.getMessage());
@@ -110,6 +112,7 @@ public class ProductManager {
             JSONObject allProducts = getAllProductsJson();
 
             if (!allProducts.has(updatedProduct.getListCode())) {
+                Log.e(TAG, "List not found: " + updatedProduct.getListCode());
                 return false;
             }
 
@@ -131,56 +134,100 @@ public class ProductManager {
                     allProducts.put(updatedProduct.getListCode(), listProducts);
                     saveAllProducts(allProducts);
 
-                    Log.d(TAG, "Product updated: " + updatedProduct.getName());
+                    Log.d(TAG, "✓ Product updated: " + updatedProduct.getName() +
+                            " ID: " + updatedProduct.getId());
                     return true;
                 }
             }
+
+            Log.e(TAG, "✗ Product not found for update: " + updatedProduct.getId());
         } catch (JSONException e) {
             Log.e(TAG, "Error updating product: " + e.getMessage());
         }
         return false;
     }
 
-    // Delete a product
+    // Delete a product - FIXED VERSION
     public boolean deleteProduct(String productId) {
         try {
+            Log.d(TAG, "DELETE: Attempting to delete product ID: " + productId);
+
+            if (productId == null || productId.isEmpty()) {
+                Log.e(TAG, "DELETE: Product ID is null or empty!");
+                return false;
+            }
+
             JSONObject allProducts = getAllProductsJson();
             boolean found = false;
 
-            // Iterate through all lists
-            for (String listCode : getAllListCodes()) {
-                if (allProducts.has(listCode)) {
-                    JSONArray listProducts = allProducts.getJSONArray(listCode);
-                    JSONArray newProducts = new JSONArray();
+            // Get all keys (list codes)
+            Iterator<String> keys = allProducts.keys();
 
-                    // Copy all except the one to delete
-                    for (int i = 0; i < listProducts.length(); i++) {
-                        JSONObject productJson = listProducts.getJSONObject(i);
-                        if (!productJson.getString("id").equals(productId)) {
-                            newProducts.put(productJson);
-                        } else {
-                            found = true;
-                        }
-                    }
+            while (keys.hasNext()) {
+                String listCode = keys.next();
+                JSONArray listProducts = allProducts.getJSONArray(listCode);
+                JSONArray newProducts = new JSONArray();
 
-                    // Update the list
-                    if (newProducts.length() > 0) {
-                        allProducts.put(listCode, newProducts);
+                // Copy all except the one to delete
+                for (int i = 0; i < listProducts.length(); i++) {
+                    JSONObject productJson = listProducts.getJSONObject(i);
+                    String jsonId = productJson.getString("id");
+
+                    if (jsonId.equals(productId)) {
+                        found = true;
+                        Log.d(TAG, "✓ DELETE: Found and removing product: " +
+                                productJson.getString("name") + " ID: " + jsonId);
                     } else {
-                        allProducts.remove(listCode);
+                        newProducts.put(productJson);
                     }
+                }
+
+                // Update the list
+                if (newProducts.length() > 0) {
+                    allProducts.put(listCode, newProducts);
+                } else {
+                    allProducts.remove(listCode);
+                    Log.d(TAG, "DELETE: Removed empty list: " + listCode);
                 }
             }
 
             if (found) {
                 saveAllProducts(allProducts);
-                Log.d(TAG, "Product deleted: " + productId);
+                Log.d(TAG, "✓ DELETE: Successfully deleted product ID: " + productId);
                 return true;
+            } else {
+                Log.e(TAG, "✗ DELETE: Product not found with ID: " + productId);
+                // Debug: Log all existing products
+                logAllProducts();
+                return false;
             }
         } catch (JSONException e) {
-            Log.e(TAG, "Error deleting product: " + e.getMessage());
+            Log.e(TAG, "DELETE: Error deleting product: " + e.getMessage());
+            return false;
         }
-        return false;
+    }
+
+    // Helper to log all products for debugging
+    private void logAllProducts() {
+        try {
+            JSONObject allProducts = getAllProductsJson();
+            Log.d(TAG, "DEBUG: All products in storage:");
+
+            Iterator<String> keys = allProducts.keys();
+            while (keys.hasNext()) {
+                String listCode = keys.next();
+                JSONArray listProducts = allProducts.getJSONArray(listCode);
+                Log.d(TAG, "  List: " + listCode + " has " + listProducts.length() + " products");
+
+                for (int i = 0; i < listProducts.length(); i++) {
+                    JSONObject product = listProducts.getJSONObject(i);
+                    Log.d(TAG, "    - ID: " + product.getString("id") +
+                            ", Name: " + product.getString("name"));
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "DEBUG: Error logging products: " + e.getMessage());
+        }
     }
 
     // Get categories for a list
@@ -233,6 +280,7 @@ public class ProductManager {
     // Helper method to save all products
     private void saveAllProducts(JSONObject allProducts) {
         sharedPreferences.edit().putString(KEY_PRODUCTS, allProducts.toString()).apply();
+        Log.d(TAG, "SAVED: " + allProducts.toString());
     }
 
     // Get all list codes that have products
@@ -240,7 +288,10 @@ public class ProductManager {
         Set<String> listCodes = new HashSet<>();
         try {
             JSONObject allProducts = getAllProductsJson();
-            listCodes.addAll((Collection<? extends String>) allProducts.keys());
+            Iterator<String> keys = allProducts.keys();
+            while (keys.hasNext()) {
+                listCodes.add(keys.next());
+            }
         } catch (Exception e) {
             Log.e(TAG, "Error getting list codes: " + e.getMessage());
         }
@@ -251,5 +302,16 @@ public class ProductManager {
     public void clearAllProducts() {
         sharedPreferences.edit().remove(KEY_PRODUCTS).apply();
         Log.d(TAG, "All products cleared");
+    }
+
+    public void clearProductsForList(String currentListCode) {
+        try {
+            JSONObject allProducts = getAllProductsJson();
+            allProducts.remove(currentListCode);
+            saveAllProducts(allProducts);
+            Log.d(TAG, "Cleared products for list: " + currentListCode);
+        } catch (Exception e) {
+            Log.e(TAG, "Error clearing products: " + e.getMessage());
+        }
     }
 }

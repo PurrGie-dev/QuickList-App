@@ -329,6 +329,7 @@ public class AuthManager {
         return true;
     }
 
+    // In AuthManager.java - make sure this method exists and works
     public boolean removeMemberFromList(String listCode, String memberEmail) {
         String currentUserEmail = getCurrentUser();
         if (currentUserEmail == null) {
@@ -340,23 +341,33 @@ public class AuthManager {
             return false;
         }
 
+        // Only creator can remove members
         if (!shoppingList.isCreator(currentUserEmail)) {
             return false;
         }
 
+        // Cannot remove the creator
         if (shoppingList.isCreator(memberEmail)) {
             return false;
         }
 
+        // Cannot remove yourself
+        if (memberEmail.equals(currentUserEmail)) {
+            return false;
+        }
+
+        // Remove member from list
         shoppingList.removeMember(memberEmail);
         saveShoppingList(shoppingList);
 
+        // Remove list from member's joined lists
         User member = getUserByEmail(memberEmail);
         if (member != null) {
             member.removeJoinedList(listCode);
             updateUser(member);
         }
 
+        Log.d(TAG, "Member removed: " + memberEmail + " from list: " + listCode);
         return true;
     }
 
@@ -472,6 +483,31 @@ public class AuthManager {
         }
 
         return createdLists;
+    }
+    // Add this method to your AuthManager.java class
+    // In AuthManager.java - make sure you have this method
+    public boolean updateShoppingList(String listCode, String newListName) {
+        try {
+            String shoppingListsJson = sharedPreferences.getString(KEY_SHOPPING_LISTS, "{}");
+            JSONObject allLists = new JSONObject(shoppingListsJson);
+
+            if (!allLists.has(listCode)) {
+                return false;
+            }
+
+            JSONObject listJson = allLists.getJSONObject(listCode);
+            listJson.put("listName", newListName);
+
+            allLists.put(listCode, listJson);
+            sharedPreferences.edit().putString(KEY_SHOPPING_LISTS, allLists.toString()).apply();
+
+            Log.d(TAG, "List updated: " + listCode + " -> " + newListName);
+            return true;
+
+        } catch (JSONException e) {
+            Log.e(TAG, "Error updating shopping list: " + e.getMessage());
+            return false;
+        }
     }
 
     public List<String> getUserJoinedLists() {

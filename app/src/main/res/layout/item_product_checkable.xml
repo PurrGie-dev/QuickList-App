@@ -64,4 +64,14 @@
 
     </LinearLayout>
 
+    <!-- ADD THIS DELETE BUTTON -->
+    <ImageButton
+        android:id="@+id/deleteItemBtn"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@android:drawable/ic_delete"
+        android:background="@android:color/transparent"
+        android:contentDescription="Delete item"
+        android:padding="8dp" />
+
 </LinearLayout>

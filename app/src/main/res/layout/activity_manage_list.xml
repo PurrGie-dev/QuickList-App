@@ -13,12 +13,31 @@
         android:textStyle="bold"
         android:layout_marginBottom="16dp"/>
 
-    <TextView
-        android:id="@+id/listCodeText"
+    <!-- Code with copy button -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="18sp"
-        android:layout_marginBottom="24dp"/>
+        android:orientation="horizontal"
+        android:layout_marginBottom="24dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/listCodeText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="18sp"/>
+
+        <Button
+            android:id="@+id/copyCodeBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📋 Copy"
+            android:padding="8dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"/>
+
+    </LinearLayout>
 
     <ScrollView
         android:layout_width="match_parent"
@@ -29,10 +48,12 @@
             android:id="@+id/membersText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="16sp"/>
+            android:textSize="16sp"
+            android:clickable="true"
+            android:focusable="true"/>
     </ScrollView>
 
-    <!-- ADD THIS NEW LAYOUT FOR ACTION BUTTONS -->
+    <!-- ADMIN ACTION BUTTONS -->
     <LinearLayout
         android:id="@+id/actionButtonsLayout"
         android:layout_width="match_parent"
@@ -40,25 +61,13 @@
         android:orientation="vertical"
         android:layout_marginTop="16dp">
 
+        <!-- ADD THIS BUTTON -->
         <Button
-            android:id="@+id/manageProductsBtn"
+            android:id="@+id/removeMemberBtn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Manage Products"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/manageCategoriesBtn"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Manage Categories"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/manageUsersBtn"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Manage Users"
+            android:text="Remove Member"
+            android:backgroundTint="@color/orange_500"
             android:layout_marginBottom="8dp"/>
 
         <Button
