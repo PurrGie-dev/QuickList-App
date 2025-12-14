@@ -2,8 +2,11 @@ package com.esb.quicklist.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -11,12 +14,12 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.esb.quicklist.utilities.AuthManager;
+import com.esb.quicklist.utilities.ProductManager;
 import com.esb.quicklist.management.ManageListActivity;
 import com.esb.quicklist.R;
 import com.esb.quicklist.models.Product;
 import com.esb.quicklist.models.ShoppingList;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class ShoppingListDetailActivity extends AppCompatActivity {
@@ -28,8 +31,8 @@ public class ShoppingListDetailActivity extends AppCompatActivity {
     private Button adminButton;
     private Button backButton;
     private AuthManager authManager;
+    private ProductManager productManager;
     private String currentListCode;
-    private final List<Product> productList = new ArrayList<>(); // Made final
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,6 +40,7 @@ public class ShoppingListDetailActivity extends AppCompatActivity {
         setContentView(R.layout.activity_shopping_list_detail);
 
         authManager = new AuthManager(this);
+        productManager = new ProductManager(this);
         currentListCode = getIntent().getStringExtra("LIST_CODE");
 
         if (currentListCode == null) {
@@ -48,6 +52,7 @@ public class ShoppingListDetailActivity extends AppCompatActivity {
         initializeViews();
         setupListeners();
         loadListData();
+        loadProducts();
     }
 
     private void initializeViews() {
@@ -69,7 +74,7 @@ public class ShoppingListDetailActivity extends AppCompatActivity {
 
         adminButton.setOnClickListener(v -> {
             if (authManager.isListCreator(currentListCode) || authManager.isCurrentUserAdmin()) {
-                showAdminOptions();
+                openListManagement();
             } else {
                 Toast.makeText(this, "Admin privileges required", Toast.LENGTH_SHORT).show();
             }
@@ -93,6 +98,7 @@ public class ShoppingListDetailActivity extends AppCompatActivity {
                 TextView membersText = new TextView(this);
                 membersText.setText("Members: " + list.getMemberCount());
                 membersText.setPadding(0, 10, 0, 10);
+                membersText.setTextSize(14);
                 productsLayout.addView(membersText);
             }
         } catch (Exception e) {
@@ -100,21 +106,132 @@ public class ShoppingListDetailActivity extends AppCompatActivity {
         }
     }
 
-    private void showAddItemDialog() {
-        Toast.makeText(this, "Add item feature coming soon!", Toast.LENGTH_SHORT).show();
+    private void loadProducts() {
+        productsLayout.removeAllViews();
+
+        List<Product> products = productManager.getProductsForList(currentListCode);
+
+        if (products.isEmpty()) {
+            TextView emptyText = new TextView(this);
+            emptyText.setText("No products in this list yet.");
+            emptyText.setPadding(16, 16, 16, 16);
+            emptyText.setTextSize(16);
+            productsLayout.addView(emptyText);
+            return;
+        }
+
+        for (Product product : products) {
+            addProductItemView(product);
+        }
     }
 
-    private void showAdminOptions() {
+    private void addProductItemView(Product product) {
+        View productView = LayoutInflater.from(this).inflate(R.layout.item_product_checkable, null);
+
+        CheckBox checkBox = productView.findViewById(R.id.checkBox);
+        TextView productNameText = productView.findViewById(R.id.productNameText);
+        TextView quantityText = productView.findViewById(R.id.quantityText);
+        TextView categoryText = productView.findViewById(R.id.categoryText);
+        TextView addedByText = productView.findViewById(R.id.addedByText);
+
+        productNameText.setText(product.getName());
+        quantityText.setText("Qty: " + product.getQuantity());
+        categoryText.setText(product.getCategory());
+        addedByText.setText("Added by: " + product.getAddedBy());
+
+        checkBox.setChecked(product.isPurchased());
+        if (product.isPurchased()) {
+            productNameText.setAlpha(0.5f);
+            quantityText.setAlpha(0.5f);
+            categoryText.setAlpha(0.5f);
+            addedByText.setAlpha(0.5f);
+        }
+
+        checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            product.setPurchased(isChecked);
+            productManager.updateProduct(product);
+            if (isChecked) {
+                productNameText.setAlpha(0.5f);
+                quantityText.setAlpha(0.5f);
+                categoryText.setAlpha(0.5f);
+                addedByText.setAlpha(0.5f);
+            } else {
+                productNameText.setAlpha(1.0f);
+                quantityText.setAlpha(1.0f);
+                categoryText.setAlpha(1.0f);
+                addedByText.setAlpha(1.0f);
+            }
+        });
+
+        productsLayout.addView(productView);
+    }
+
+    private void showAddItemDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Admin Options");
+        builder.setTitle("Add Item to List");
 
-        String[] options = {"Delete Users", "List Settings"};
+        // Create layout for inputs
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 20, 50, 20);
 
-        builder.setItems(options, (dialog, which) -> {
-            if (which == 0) {
-                showDeleteUsersDialog();
-            } else if (which == 1) {
-                openListSettings();
+        final EditText nameInput = new EditText(this);
+        nameInput.setHint("Item Name (e.g., Milk)");
+        layout.addView(nameInput);
+
+        final EditText quantityInput = new EditText(this);
+        quantityInput.setHint("Quantity (e.g., 2)");
+        quantityInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        layout.addView(quantityInput);
+
+        final EditText categoryInput = new EditText(this);
+        categoryInput.setHint("Category (optional, e.g., Groceries)");
+        layout.addView(categoryInput);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("Add Item", (dialog, which) -> {
+            String name = nameInput.getText().toString().trim();
+            String quantityStr = quantityInput.getText().toString().trim();
+            String category = categoryInput.getText().toString().trim();
+
+            // Validation
+            if (name.isEmpty()) {
+                Toast.makeText(this, "Please enter item name", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (quantityStr.isEmpty()) {
+                Toast.makeText(this, "Please enter quantity", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            try {
+                int quantity = Integer.parseInt(quantityStr);
+                String currentUser = authManager.getCurrentUser();
+
+                if (category.isEmpty()) {
+                    category = "General";
+                }
+
+                // Create the product
+                Product newProduct = new Product(
+                        name,
+                        category,
+                        quantity,
+                        currentUser,
+                        currentListCode
+                );
+
+                // Save using ProductManager
+                if (productManager.addProduct(newProduct)) {
+                    Toast.makeText(this, "✓ Added: " + name + " (x" + quantity + ")", Toast.LENGTH_SHORT).show();
+                    loadProducts(); // Refresh the list
+                } else {
+                    Toast.makeText(this, "Failed to add item", Toast.LENGTH_SHORT).show();
+                }
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, "Please enter a valid number for quantity", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -122,35 +239,7 @@ public class ShoppingListDetailActivity extends AppCompatActivity {
         builder.show();
     }
 
-    private void showDeleteUsersDialog() {
-        ShoppingList list = authManager.getShoppingList(currentListCode);
-        if (list == null) return;
-
-        String creator = list.getCreatorEmail();
-        StringBuilder message = new StringBuilder();
-        message.append("Creator: ").append(creator).append("\n\n");
-        message.append("Other members:\n");
-
-        int memberCount = 0;
-        for (String member : list.getMemberEmails()) {
-            if (!member.equals(creator)) {
-                message.append("- ").append(member).append("\n");
-                memberCount++;
-            }
-        }
-
-        if (memberCount == 0) {
-            message.append("No other members to delete.");
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle("List Members")
-                .setMessage(message.toString())
-                .setPositiveButton("OK", null)
-                .show();
-    }
-
-    private void openListSettings() {
+    private void openListManagement() {
         Intent intent = new Intent(this, ManageListActivity.class);
         intent.putExtra("LIST_CODE", currentListCode);
         startActivity(intent);

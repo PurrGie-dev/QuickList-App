@@ -3,211 +3,253 @@ package com.esb.quicklist.utilities;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
-
 import com.esb.quicklist.models.Product;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale; // ADD THIS IMPORT
+import java.util.Set;
 
 public class ProductManager {
-    private static final String TAG = "ProductManager";
     private static final String PREF_NAME = "ProductPrefs";
-    private static final String KEY_PRODUCTS = "products";
+    private static final String KEY_PRODUCTS = "all_products";
+    private static final String TAG = "ProductManager";
 
     private final SharedPreferences sharedPreferences;
+    private final AuthManager authManager;
 
     public ProductManager(Context context) {
         sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        authManager = new AuthManager(context);
     }
 
-    // Add a new product
+    // Save product to SharedPreferences
     public boolean addProduct(Product product) {
         try {
-            List<Product> allProducts = getAllProducts();
-            allProducts.add(product);
-            saveProducts(allProducts);
-            Log.d(TAG, "Product added: " + product.getName());
+            // Get all products
+            JSONObject allProducts = getAllProductsJson();
+
+            // Get or create array for this list
+            JSONArray listProducts;
+            if (allProducts.has(product.getListCode())) {
+                listProducts = allProducts.getJSONArray(product.getListCode());
+            } else {
+                listProducts = new JSONArray();
+            }
+
+            // Convert product to JSON
+            JSONObject productJson = new JSONObject();
+            productJson.put("id", product.getId());
+            productJson.put("name", product.getName());
+            productJson.put("category", product.getCategory());
+            productJson.put("quantity", product.getQuantity());
+            productJson.put("purchased", product.isPurchased());
+            productJson.put("addedBy", product.getAddedBy());
+            productJson.put("listCode", product.getListCode());
+            productJson.put("notes", product.getNotes());
+            productJson.put("price", product.getPrice());
+            productJson.put("addedDate", product.getAddedDate());
+
+            // Add to array
+            listProducts.put(productJson);
+
+            // Save back
+            allProducts.put(product.getListCode(), listProducts);
+            saveAllProducts(allProducts);
+
+            Log.d(TAG, "Product added: " + product.getName() + " to list: " + product.getListCode());
             return true;
-        } catch (Exception e) {
+        } catch (JSONException e) {
             Log.e(TAG, "Error adding product: " + e.getMessage());
             return false;
         }
     }
 
-    // Get all products for a specific list
+    // Get products for a specific list
     public List<Product> getProductsForList(String listCode) {
-        List<Product> listProducts = new ArrayList<>();
-        List<Product> allProducts = getAllProducts();
+        List<Product> products = new ArrayList<>();
+        try {
+            JSONObject allProducts = getAllProductsJson();
 
-        for (Product product : allProducts) {
-            if (product.getListCode().equals(listCode)) {
-                listProducts.add(product);
+            if (allProducts.has(listCode)) {
+                JSONArray listProducts = allProducts.getJSONArray(listCode);
+                for (int i = 0; i < listProducts.length(); i++) {
+                    JSONObject productJson = listProducts.getJSONObject(i);
+
+                    Product product = new Product(
+                            productJson.getString("name"),
+                            productJson.getString("category"),
+                            productJson.getInt("quantity"),
+                            productJson.getString("addedBy"),
+                            productJson.getString("listCode"),
+                            productJson.optString("notes", ""),
+                            productJson.optDouble("price", 0.0)
+                    );
+
+                    product.setId(productJson.getString("id"));
+                    product.setPurchased(productJson.optBoolean("purchased", false));
+                    product.setAddedDate(productJson.optLong("addedDate", System.currentTimeMillis()));
+
+                    products.add(product);
+                }
             }
+
+            Log.d(TAG, "Retrieved " + products.size() + " products for list: " + listCode);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error getting products: " + e.getMessage());
         }
-        return listProducts;
+        return products;
     }
 
-    // Update a product
+    // Update an existing product
     public boolean updateProduct(Product updatedProduct) {
         try {
-            List<Product> allProducts = getAllProducts();
-            for (int i = 0; i < allProducts.size(); i++) {
-                if (allProducts.get(i).getId().equals(updatedProduct.getId())) {
-                    allProducts.set(i, updatedProduct);
-                    saveProducts(allProducts);
+            JSONObject allProducts = getAllProductsJson();
+
+            if (!allProducts.has(updatedProduct.getListCode())) {
+                return false;
+            }
+
+            JSONArray listProducts = allProducts.getJSONArray(updatedProduct.getListCode());
+
+            // Find and update the product
+            for (int i = 0; i < listProducts.length(); i++) {
+                JSONObject productJson = listProducts.getJSONObject(i);
+                if (productJson.getString("id").equals(updatedProduct.getId())) {
+                    // Update all fields
+                    productJson.put("name", updatedProduct.getName());
+                    productJson.put("category", updatedProduct.getCategory());
+                    productJson.put("quantity", updatedProduct.getQuantity());
+                    productJson.put("purchased", updatedProduct.isPurchased());
+                    productJson.put("notes", updatedProduct.getNotes());
+                    productJson.put("price", updatedProduct.getPrice());
+
+                    // Save back
+                    allProducts.put(updatedProduct.getListCode(), listProducts);
+                    saveAllProducts(allProducts);
+
                     Log.d(TAG, "Product updated: " + updatedProduct.getName());
                     return true;
                 }
             }
-            return false;
-        } catch (Exception e) {
+        } catch (JSONException e) {
             Log.e(TAG, "Error updating product: " + e.getMessage());
-            return false;
         }
+        return false;
     }
 
     // Delete a product
     public boolean deleteProduct(String productId) {
         try {
-            List<Product> allProducts = getAllProducts();
-            for (int i = 0; i < allProducts.size(); i++) {
-                if (allProducts.get(i).getId().equals(productId)) {
-                    allProducts.remove(i);
-                    saveProducts(allProducts);
-                    Log.d(TAG, "Product deleted: " + productId);
-                    return true;
+            JSONObject allProducts = getAllProductsJson();
+            boolean found = false;
+
+            // Iterate through all lists
+            for (String listCode : getAllListCodes()) {
+                if (allProducts.has(listCode)) {
+                    JSONArray listProducts = allProducts.getJSONArray(listCode);
+                    JSONArray newProducts = new JSONArray();
+
+                    // Copy all except the one to delete
+                    for (int i = 0; i < listProducts.length(); i++) {
+                        JSONObject productJson = listProducts.getJSONObject(i);
+                        if (!productJson.getString("id").equals(productId)) {
+                            newProducts.put(productJson);
+                        } else {
+                            found = true;
+                        }
+                    }
+
+                    // Update the list
+                    if (newProducts.length() > 0) {
+                        allProducts.put(listCode, newProducts);
+                    } else {
+                        allProducts.remove(listCode);
+                    }
                 }
             }
-            return false;
-        } catch (Exception e) {
+
+            if (found) {
+                saveAllProducts(allProducts);
+                Log.d(TAG, "Product deleted: " + productId);
+                return true;
+            }
+        } catch (JSONException e) {
             Log.e(TAG, "Error deleting product: " + e.getMessage());
-            return false;
         }
+        return false;
     }
 
-    // Mark product as purchased/unpurchased
-    public boolean togglePurchaseStatus(String productId, boolean purchased) {
-        try {
-            List<Product> allProducts = getAllProducts();
-            for (Product product : allProducts) {
-                if (product.getId().equals(productId)) {
-                    product.setPurchased(purchased);
-                    saveProducts(allProducts);
-                    Log.d(TAG, "Product purchase status updated: " + productId + " = " + purchased);
-                    return true;
-                }
-            }
-            return false;
-        } catch (Exception e) {
-            Log.e(TAG, "Error toggling purchase status: " + e.getMessage());
-            return false;
-        }
-    }
-
-    // Get all categories for a list
+    // Get categories for a list
     public List<String> getCategoriesForList(String listCode) {
         List<String> categories = new ArrayList<>();
-        List<Product> products = getProductsForList(listCode);
+        Set<String> categorySet = new HashSet<>();
 
+        List<Product> products = getProductsForList(listCode);
         for (Product product : products) {
-            String category = product.getCategory();
-            if (!category.isEmpty() && !categories.contains(category)) {
-                categories.add(category);
+            String category = product.getCategory().trim();
+            if (!category.isEmpty() && !"system".equals(category)) {
+                categorySet.add(category);
             }
         }
 
-        // Add default categories if none exist
-        if (categories.isEmpty()) {
-            categories.add("Groceries");
-            categories.add("Household");
-            categories.add("Personal Care");
-            categories.add("Other");
-        }
-
+        categories.addAll(categorySet);
+        Log.d(TAG, "Retrieved " + categories.size() + " categories for list: " + listCode);
         return categories;
     }
 
     // Get statistics for a list
     public String getListStatistics(String listCode) {
         List<Product> products = getProductsForList(listCode);
-        int totalItems = 0;
-        int purchasedItems = 0;
+        int totalProducts = products.size();
+        int purchasedCount = 0;
         double totalCost = 0.0;
 
         for (Product product : products) {
-            totalItems += product.getQuantity();
             if (product.isPurchased()) {
-                purchasedItems += product.getQuantity();
+                purchasedCount++;
             }
             totalCost += product.getTotalPrice();
         }
 
-        return String.format(Locale.getDefault(),
-                "Total Items: %d\nPurchased: %d\nRemaining: %d\nTotal Cost: $%.2f",
-                totalItems, purchasedItems, (totalItems - purchasedItems), totalCost);
+        return String.format("Total Products: %d\nPurchased: %d\nRemaining: %d\nTotal Cost: $%.2f",
+                totalProducts, purchasedCount, totalProducts - purchasedCount, totalCost);
     }
 
-    // PRIVATE HELPER METHODS
-    private List<Product> getAllProducts() {
-        List<Product> products = new ArrayList<>();
-        String productsJson = sharedPreferences.getString(KEY_PRODUCTS, "[]");
-
+    // Helper method to get all products JSON
+    private JSONObject getAllProductsJson() {
         try {
-            JSONArray jsonArray = new JSONArray(productsJson);
-            for (int i = 0; i < jsonArray.length(); i++) {
-                JSONObject jsonObject = jsonArray.getJSONObject(i);
-
-                Product product = new Product(
-                        jsonObject.getString("name"),
-                        jsonObject.getString("category"),
-                        jsonObject.getInt("quantity"),
-                        jsonObject.getString("addedBy"),
-                        jsonObject.getString("listCode"),
-                        jsonObject.optString("notes", ""),
-                        jsonObject.optDouble("price", 0.0)
-                );
-
-                // Set additional fields
-                product.setId(jsonObject.getString("id")); // USE SETTER
-                product.setPurchased(jsonObject.getBoolean("purchased"));
-                product.setAddedDate(jsonObject.getLong("addedDate")); // USE SETTER
-
-                products.add(product);
-            }
+            String productsJson = sharedPreferences.getString(KEY_PRODUCTS, "{}");
+            return new JSONObject(productsJson);
         } catch (JSONException e) {
-            Log.e(TAG, "Error parsing products: " + e.getMessage());
+            Log.e(TAG, "Error parsing products JSON: " + e.getMessage());
+            return new JSONObject();
         }
-
-        return products;
     }
 
-    private void saveProducts(List<Product> products) {
-        JSONArray jsonArray = new JSONArray();
+    // Helper method to save all products
+    private void saveAllProducts(JSONObject allProducts) {
+        sharedPreferences.edit().putString(KEY_PRODUCTS, allProducts.toString()).apply();
+    }
 
+    // Get all list codes that have products
+    private Set<String> getAllListCodes() {
+        Set<String> listCodes = new HashSet<>();
         try {
-            for (Product product : products) {
-                JSONObject jsonObject = new JSONObject();
-                jsonObject.put("id", product.getId());
-                jsonObject.put("name", product.getName());
-                jsonObject.put("category", product.getCategory());
-                jsonObject.put("quantity", product.getQuantity());
-                jsonObject.put("purchased", product.isPurchased());
-                jsonObject.put("addedBy", product.getAddedBy());
-                jsonObject.put("listCode", product.getListCode());
-                jsonObject.put("addedDate", product.getAddedDate());
-                jsonObject.put("notes", product.getNotes());
-                jsonObject.put("price", product.getPrice());
-
-                jsonArray.put(jsonObject);
-            }
-        } catch (JSONException e) {
-            Log.e(TAG, "Error saving products: " + e.getMessage());
+            JSONObject allProducts = getAllProductsJson();
+            listCodes.addAll((Collection<? extends String>) allProducts.keys());
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting list codes: " + e.getMessage());
         }
+        return listCodes;
+    }
 
-        sharedPreferences.edit().putString(KEY_PRODUCTS, jsonArray.toString()).apply();
+    // Clear all products (for testing)
+    public void clearAllProducts() {
+        sharedPreferences.edit().remove(KEY_PRODUCTS).apply();
+        Log.d(TAG, "All products cleared");
     }
 }

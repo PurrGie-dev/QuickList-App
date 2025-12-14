@@ -13,7 +13,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public class AuthManager {
@@ -21,6 +23,7 @@ public class AuthManager {
     private static final String KEY_USERS = "registered_users";
     private static final String KEY_CURRENT_USER = "current_user";
     private static final String KEY_SHOPPING_LISTS = "shopping_lists";
+    private static final String KEY_PRODUCTS = "products"; // ADDED
     private static final String TAG = "AuthManager";
 
     private final SharedPreferences sharedPreferences;
@@ -28,73 +31,209 @@ public class AuthManager {
     public AuthManager(Context context) {
         sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
     }
-// Add to AuthManager class
 
-    // Product Management
-    public boolean addProductToList(String listCode, Product product) {
-        // Implementation
-        return true;
+    // ==================== PRODUCT MANAGEMENT METHODS ====================
+
+    // Save product (shared across all users of the same list)
+    public boolean saveProduct(Product product) {
+        try {
+            String productsJson = sharedPreferences.getString(KEY_PRODUCTS, "{}");
+            JSONObject allProducts = new JSONObject(productsJson);
+
+            // Get or create array for this list
+            JSONArray listProducts;
+            if (allProducts.has(product.getListCode())) {
+                listProducts = allProducts.getJSONArray(product.getListCode());
+            } else {
+                listProducts = new JSONArray();
+            }
+
+            // Convert product to JSON
+            JSONObject productJson = new JSONObject();
+            productJson.put("id", product.getId());
+            productJson.put("name", product.getName());
+            productJson.put("category", product.getCategory());
+            productJson.put("quantity", product.getQuantity());
+            productJson.put("purchased", product.isPurchased());
+            productJson.put("addedBy", product.getAddedBy());
+            productJson.put("listCode", product.getListCode());
+            productJson.put("notes", product.getNotes());
+            productJson.put("price", product.getPrice());
+            productJson.put("addedDate", product.getAddedDate());
+
+            listProducts.put(productJson);
+            allProducts.put(product.getListCode(), listProducts);
+
+            sharedPreferences.edit().putString(KEY_PRODUCTS, allProducts.toString()).apply();
+            Log.d(TAG, "Product saved: " + product.getName() + " to list: " + product.getListCode());
+            return true;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error saving product: " + e.getMessage());
+            return false;
+        }
     }
 
-    public boolean removeProductFromList(String listCode, String productId) {
-        // Implementation
-        return true;
+    // Get products for a list (shared across all users)
+    public List<Product> getProductsForList(String listCode) {
+        List<Product> products = new ArrayList<>();
+        try {
+            String productsJson = sharedPreferences.getString(KEY_PRODUCTS, "{}");
+            JSONObject allProducts = new JSONObject(productsJson);
+
+            if (allProducts.has(listCode)) {
+                JSONArray listProducts = allProducts.getJSONArray(listCode);
+                for (int i = 0; i < listProducts.length(); i++) {
+                    JSONObject productJson = listProducts.getJSONObject(i);
+
+                    Product product = new Product(
+                            productJson.getString("name"),
+                            productJson.getString("category"),
+                            productJson.getInt("quantity"),
+                            productJson.getString("addedBy"),
+                            productJson.getString("listCode"),
+                            productJson.optString("notes", ""),
+                            productJson.optDouble("price", 0.0)
+                    );
+
+                    product.setId(productJson.getString("id"));
+                    product.setPurchased(productJson.optBoolean("purchased", false));
+                    product.setAddedDate(productJson.optLong("addedDate", System.currentTimeMillis()));
+
+                    products.add(product);
+                }
+            }
+            Log.d(TAG, "Retrieved " + products.size() + " products for list: " + listCode);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error getting products: " + e.getMessage());
+        }
+        return products;
     }
 
-    public boolean updateProductInList(String listCode, Product updatedProduct) {
-        // Implementation
-        return true;
+    // Update product
+    public boolean updateProduct(Product updatedProduct) {
+        try {
+            String productsJson = sharedPreferences.getString(KEY_PRODUCTS, "{}");
+            JSONObject allProducts = new JSONObject(productsJson);
+
+            if (!allProducts.has(updatedProduct.getListCode())) {
+                return false;
+            }
+
+            JSONArray listProducts = allProducts.getJSONArray(updatedProduct.getListCode());
+
+            // Find and update the product
+            for (int i = 0; i < listProducts.length(); i++) {
+                JSONObject productJson = listProducts.getJSONObject(i);
+                if (productJson.getString("id").equals(updatedProduct.getId())) {
+                    // Update fields
+                    productJson.put("name", updatedProduct.getName());
+                    productJson.put("category", updatedProduct.getCategory());
+                    productJson.put("quantity", updatedProduct.getQuantity());
+                    productJson.put("purchased", updatedProduct.isPurchased());
+                    productJson.put("notes", updatedProduct.getNotes());
+                    productJson.put("price", updatedProduct.getPrice());
+
+                    allProducts.put(updatedProduct.getListCode(), listProducts);
+                    sharedPreferences.edit().putString(KEY_PRODUCTS, allProducts.toString()).apply();
+                    Log.d(TAG, "Product updated: " + updatedProduct.getName());
+                    return true;
+                }
+            }
+        } catch (JSONException e) {
+            Log.e(TAG, "Error updating product: " + e.getMessage());
+        }
+        return false;
     }
 
-    // Category Management
-    public boolean addCategoryToList(String listCode, Category category) {
-        // Implementation
-        return true;
+    // Delete product
+    public boolean deleteProduct(String productId, String listCode) {
+        try {
+            String productsJson = sharedPreferences.getString(KEY_PRODUCTS, "{}");
+            JSONObject allProducts = new JSONObject(productsJson);
+
+            if (!allProducts.has(listCode)) {
+                return false;
+            }
+
+            JSONArray listProducts = allProducts.getJSONArray(listCode);
+            JSONArray newProducts = new JSONArray();
+
+            // Copy all except the one to delete
+            for (int i = 0; i < listProducts.length(); i++) {
+                JSONObject productJson = listProducts.getJSONObject(i);
+                if (!productJson.getString("id").equals(productId)) {
+                    newProducts.put(productJson);
+                }
+            }
+
+            allProducts.put(listCode, newProducts);
+            sharedPreferences.edit().putString(KEY_PRODUCTS, allProducts.toString()).apply();
+            Log.d(TAG, "Product deleted: " + productId + " from list: " + listCode);
+            return true;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error deleting product: " + e.getMessage());
+        }
+        return false;
     }
 
-    public boolean removeCategoryFromList(String listCode, String categoryId) {
-        // Implementation
-        return true;
+    // Get categories for a list
+    public List<String> getCategoriesForList(String listCode) {
+        List<String> categories = new ArrayList<>();
+        Set<String> categorySet = new HashSet<>();
+
+        List<Product> products = getProductsForList(listCode);
+        for (Product product : products) {
+            String category = product.getCategory().trim();
+            if (!category.isEmpty() && !"system".equals(category)) {
+                categorySet.add(category);
+            }
+        }
+
+        categories.addAll(categorySet);
+        Log.d(TAG, "Retrieved " + categories.size() + " categories for list: " + listCode);
+        return categories;
     }
 
-    // User Management
-    public boolean blockUserFromList(String listCode, String userEmail) {
-        // Implementation
-        return true;
+    // Get list statistics
+    public String getListStatistics(String listCode) {
+        List<Product> products = getProductsForList(listCode);
+        int totalProducts = products.size();
+        int purchasedCount = 0;
+        double totalCost = 0.0;
+
+        for (Product product : products) {
+            if (product.isPurchased()) {
+                purchasedCount++;
+            }
+            totalCost += product.getTotalPrice();
+        }
+
+        return String.format("Total Products: %d\nPurchased: %d\nRemaining: %d\nTotal Cost: $%.2f",
+                totalProducts, purchasedCount, totalProducts - purchasedCount, totalCost);
     }
 
-    public boolean unblockUserFromList(String listCode, String userEmail) {
-        // Implementation
-        return true;
-    }
+    // ==================== EXISTING USER/LIST METHODS ====================
+
     public boolean registerUser(String email, String password) {
         return registerUser(email, password, User.UserRole.USER);
     }
 
-    // Register a new user with specific role
     public boolean registerUser(String email, String password, User.UserRole role) {
         Log.d(TAG, "Attempting to register: " + email + " as " + role);
 
-        // Check if user already exists
         if (userExists(email)) {
             Log.d(TAG, "User already exists: " + email);
             return false;
         }
 
-        // Get existing users
         List<User> users = getRegisteredUsers();
-
-        // Add new user
         users.add(new User(email, password, role));
-
-        // Save to SharedPreferences
         saveUsers(users);
 
         Log.d(TAG, "Registration successful for: " + email + " as " + role);
         return true;
     }
 
-    // Login user
     public boolean loginUser(String email, String password) {
         Log.d(TAG, "Attempting login for: " + email);
 
@@ -102,7 +241,6 @@ public class AuthManager {
 
         for (User user : users) {
             if (user.getEmail().equals(email) && user.getPassword().equals(password)) {
-                // Save current user
                 sharedPreferences.edit().putString(KEY_CURRENT_USER, email).apply();
                 Log.d(TAG, "Login successful for: " + email);
                 return true;
@@ -113,7 +251,6 @@ public class AuthManager {
         return false;
     }
 
-    // Create a new shopping list
     public String createShoppingList(String listName) {
         return createShoppingList(listName, "General");
     }
@@ -124,49 +261,38 @@ public class AuthManager {
             return null;
         }
 
-        // Generate unique list code
         String listCode = generateListCode();
-
-        // Create new shopping list
         ShoppingList shoppingList = new ShoppingList(listCode, listName, currentUserEmail, category);
-
-        // Save shopping list
         saveShoppingList(shoppingList);
 
-        // Add to user's created lists
         User user = getCurrentUserObject();
         if (user != null) {
             user.addCreatedList(listCode);
-            user.addJoinedList(listCode); // Creator is automatically a member
+            user.addJoinedList(listCode);
             updateUser(user);
         }
 
         return listCode;
     }
 
-    // Join a shopping list using list code
     public boolean joinShoppingList(String listCode) {
         String currentUserEmail = getCurrentUser();
         if (currentUserEmail == null) {
             return false;
         }
 
-        // Check if list exists
         ShoppingList shoppingList = getShoppingList(listCode);
         if (shoppingList == null) {
             return false;
         }
 
-        // Check if user is already a member
         if (shoppingList.isMember(currentUserEmail)) {
             return false;
         }
 
-        // Add user to list members
         shoppingList.addMember(currentUserEmail);
         saveShoppingList(shoppingList);
 
-        // Add list to user's joined lists
         User user = getCurrentUserObject();
         if (user != null) {
             user.addJoinedList(listCode);
@@ -176,29 +302,24 @@ public class AuthManager {
         return true;
     }
 
-    // Leave a shopping list
     public boolean leaveShoppingList(String listCode) {
         String currentUserEmail = getCurrentUser();
         if (currentUserEmail == null) {
             return false;
         }
 
-        // Check if list exists
         ShoppingList shoppingList = getShoppingList(listCode);
         if (shoppingList == null) {
             return false;
         }
 
-        // Check if user is the creator (creator cannot leave)
         if (shoppingList.isCreator(currentUserEmail)) {
             return false;
         }
 
-        // Remove user from list members
         shoppingList.removeMember(currentUserEmail);
         saveShoppingList(shoppingList);
 
-        // Remove list from user's joined lists
         User user = getCurrentUserObject();
         if (user != null) {
             user.removeJoinedList(listCode);
@@ -208,34 +329,28 @@ public class AuthManager {
         return true;
     }
 
-    // Remove member from shopping list (only creator can do this)
     public boolean removeMemberFromList(String listCode, String memberEmail) {
         String currentUserEmail = getCurrentUser();
         if (currentUserEmail == null) {
             return false;
         }
 
-        // Check if list exists
         ShoppingList shoppingList = getShoppingList(listCode);
         if (shoppingList == null) {
             return false;
         }
 
-        // Check if current user is the creator
         if (!shoppingList.isCreator(currentUserEmail)) {
             return false;
         }
 
-        // Check if trying to remove creator
         if (shoppingList.isCreator(memberEmail)) {
             return false;
         }
 
-        // Remove member from list
         shoppingList.removeMember(memberEmail);
         saveShoppingList(shoppingList);
 
-        // Remove list from member's joined lists
         User member = getUserByEmail(memberEmail);
         if (member != null) {
             member.removeJoinedList(listCode);
@@ -245,18 +360,14 @@ public class AuthManager {
         return true;
     }
 
-    // Generate unique list code
     private String generateListCode() {
         String code;
         do {
-            // Generate 6-character alphanumeric code
             code = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         } while (getShoppingList(code) != null);
-
         return code;
     }
 
-    // Get shopping list by code
     public ShoppingList getShoppingList(String listCode) {
         String shoppingListsJson = sharedPreferences.getString(KEY_SHOPPING_LISTS, "{}");
         try {
@@ -270,7 +381,6 @@ public class AuthManager {
 
                 ShoppingList shoppingList = new ShoppingList(listCode, listName, creatorEmail, category);
 
-                // Add members
                 JSONArray membersArray = listJson.getJSONArray("members");
                 for (int i = 0; i < membersArray.length(); i++) {
                     shoppingList.addMember(membersArray.getString(i));
@@ -284,7 +394,6 @@ public class AuthManager {
         return null;
     }
 
-    // Save shopping list
     private void saveShoppingList(ShoppingList shoppingList) {
         String shoppingListsJson = sharedPreferences.getString(KEY_SHOPPING_LISTS, "{}");
         try {
@@ -309,7 +418,6 @@ public class AuthManager {
         }
     }
 
-    // Get all shopping lists for current user (both created and joined)
     public List<ShoppingList> getUserShoppingLists() {
         List<ShoppingList> userLists = new ArrayList<>();
         String currentUserEmail = getCurrentUser();
@@ -331,7 +439,6 @@ public class AuthManager {
 
                     ShoppingList shoppingList = new ShoppingList(listCode, listName, creatorEmail, category);
 
-                    // Add members
                     JSONArray membersArray = listJson.getJSONArray("members");
                     for (int i = 0; i < membersArray.length(); i++) {
                         shoppingList.addMember(membersArray.getString(i));
@@ -347,7 +454,6 @@ public class AuthManager {
         return userLists;
     }
 
-    // Get shopping lists created by current user
     public List<ShoppingList> getCreatedShoppingLists() {
         List<ShoppingList> createdLists = new ArrayList<>();
         User user = getCurrentUserObject();
@@ -368,7 +474,6 @@ public class AuthManager {
         return createdLists;
     }
 
-    // Get lists joined by current user
     public List<String> getUserJoinedLists() {
         User user = getCurrentUserObject();
         if (user == null || user.getJoinedLists().isEmpty()) {
@@ -383,7 +488,6 @@ public class AuthManager {
         return lists;
     }
 
-    // Get user by email
     private User getUserByEmail(String email) {
         List<User> users = getRegisteredUsers();
         for (User user : users) {
@@ -394,7 +498,6 @@ public class AuthManager {
         return null;
     }
 
-    // Update user in storage
     private void updateUser(User updatedUser) {
         List<User> users = getRegisteredUsers();
         for (int i = 0; i < users.size(); i++) {
@@ -406,7 +509,6 @@ public class AuthManager {
         }
     }
 
-    // Get current user object
     public User getCurrentUserObject() {
         String email = getCurrentUser();
         if (email == null) return null;
@@ -420,13 +522,11 @@ public class AuthManager {
         return null;
     }
 
-    // Check if current user is admin
     public boolean isCurrentUserAdmin() {
         User user = getCurrentUserObject();
         return user != null && user.isAdmin();
     }
 
-    // Check if current user is creator of a list
     public boolean isListCreator(String listCode) {
         String currentUserEmail = getCurrentUser();
         if (currentUserEmail == null) return false;
@@ -435,7 +535,6 @@ public class AuthManager {
         return list != null && list.isCreator(currentUserEmail);
     }
 
-    // Get list members
     public List<String> getListMembers(String listCode) {
         ShoppingList list = getShoppingList(listCode);
         if (list != null) {
@@ -444,7 +543,6 @@ public class AuthManager {
         return new ArrayList<>();
     }
 
-    // Existing helper methods
     private List<User> getRegisteredUsers() {
         String usersJson = sharedPreferences.getString(KEY_USERS, "[]");
         List<User> users = new ArrayList<>();
@@ -461,7 +559,6 @@ public class AuthManager {
 
                 User user = new User(email, password, role);
 
-                // Add created lists
                 if (!createdLists.isEmpty()) {
                     String[] lists = createdLists.split(",");
                     for (String listCode : lists) {
@@ -471,7 +568,6 @@ public class AuthManager {
                     }
                 }
 
-                // Add joined lists
                 if (!joinedLists.isEmpty()) {
                     String[] lists = joinedLists.split(",");
                     for (String listCode : lists) {
@@ -536,7 +632,6 @@ public class AuthManager {
         return false;
     }
 
-    // DEBUG: Clear all data
     public void clearAllData() {
         sharedPreferences.edit().clear().apply();
         Log.d(TAG, "Cleared all data");

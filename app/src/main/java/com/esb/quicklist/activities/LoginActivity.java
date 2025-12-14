@@ -10,6 +10,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.esb.quicklist.utilities.AuthManager;
+import com.esb.quicklist.ForgotPasswordActivity;
 import com.esb.quicklist.utilities.PasswordUtils;
 import com.esb.quicklist.R;
 import com.google.android.material.textfield.TextInputLayout;

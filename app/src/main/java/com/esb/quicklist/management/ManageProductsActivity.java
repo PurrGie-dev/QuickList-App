@@ -57,7 +57,6 @@ public class ManageProductsActivity extends AppCompatActivity {
 
     private void setupListeners() {
         backButton.setOnClickListener(v -> finish());
-
         addProductButton.setOnClickListener(v -> showAddProductDialog());
     }
 
@@ -93,7 +92,8 @@ public class ManageProductsActivity extends AppCompatActivity {
         productName.setText(product.getName());
         String details = "Quantity: " + product.getQuantity() +
                 " | Category: " + product.getCategory() +
-                " | Price: $" + String.format("%.2f", product.getPrice());
+                " | Price: $" + String.format("%.2f", product.getPrice()) +
+                " | Added by: " + product.getAddedBy();
         if (!product.getNotes().isEmpty()) {
             details += "\nNotes: " + product.getNotes();
         }
@@ -132,8 +132,9 @@ public class ManageProductsActivity extends AppCompatActivity {
         layout.addView(nameInput);
 
         final EditText quantityInput = new EditText(this);
-        quantityInput.setHint("Quantity");
+        quantityInput.setHint("Quantity (e.g., 2)");
         quantityInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        quantityInput.setText("1"); // Default value
         layout.addView(quantityInput);
 
         final EditText categoryInput = new EditText(this);
@@ -141,7 +142,7 @@ public class ManageProductsActivity extends AppCompatActivity {
         layout.addView(categoryInput);
 
         final EditText priceInput = new EditText(this);
-        priceInput.setHint("Price per item (optional)");
+        priceInput.setHint("Price per item (optional, e.g., 2.99)");
         priceInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
         layout.addView(priceInput);
 
@@ -151,16 +152,20 @@ public class ManageProductsActivity extends AppCompatActivity {
 
         builder.setView(layout);
 
-        builder.setPositiveButton("Add", (dialog, which) -> {
+        builder.setPositiveButton("Add Product", (dialog, which) -> {
             String name = nameInput.getText().toString().trim();
             String quantityStr = quantityInput.getText().toString().trim();
             String category = categoryInput.getText().toString().trim();
             String priceStr = priceInput.getText().toString().trim();
             String notes = notesInput.getText().toString().trim();
 
-            if (name.isEmpty() || quantityStr.isEmpty()) {
-                Toast.makeText(this, "Please fill required fields", Toast.LENGTH_SHORT).show();
+            if (name.isEmpty()) {
+                Toast.makeText(this, "Please enter product name", Toast.LENGTH_SHORT).show();
                 return;
+            }
+
+            if (quantityStr.isEmpty()) {
+                quantityStr = "1";
             }
 
             try {
@@ -168,17 +173,21 @@ public class ManageProductsActivity extends AppCompatActivity {
                 double price = priceStr.isEmpty() ? 0.0 : Double.parseDouble(priceStr);
                 String currentUser = authManager.getCurrentUser();
 
+                if (category.isEmpty()) {
+                    category = "General";
+                }
+
                 Product newProduct = new Product(name, category, quantity, currentUser, currentListCode, notes, price);
 
                 if (productManager.addProduct(newProduct)) {
-                    Toast.makeText(this, "Product added successfully", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "✓ Product added: " + name, Toast.LENGTH_SHORT).show();
                     loadProducts();
                     updateStatistics();
                 } else {
                     Toast.makeText(this, "Failed to add product", Toast.LENGTH_SHORT).show();
                 }
             } catch (NumberFormatException e) {
-                Toast.makeText(this, "Please enter valid numbers", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Please enter valid numbers for quantity and price", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -188,7 +197,7 @@ public class ManageProductsActivity extends AppCompatActivity {
 
     private void showEditProductDialog(Product product) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Edit Product");
+        builder.setTitle("Edit Product: " + product.getName());
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -218,21 +227,29 @@ public class ManageProductsActivity extends AppCompatActivity {
 
         builder.setView(layout);
 
-        builder.setPositiveButton("Save", (dialog, which) -> {
+        builder.setPositiveButton("Save Changes", (dialog, which) -> {
             String name = nameInput.getText().toString().trim();
             String quantityStr = quantityInput.getText().toString().trim();
             String category = categoryInput.getText().toString().trim();
             String priceStr = priceInput.getText().toString().trim();
             String notes = notesInput.getText().toString().trim();
 
-            if (name.isEmpty() || quantityStr.isEmpty()) {
-                Toast.makeText(this, "Please fill required fields", Toast.LENGTH_SHORT).show();
+            if (name.isEmpty()) {
+                Toast.makeText(this, "Please enter product name", Toast.LENGTH_SHORT).show();
                 return;
+            }
+
+            if (quantityStr.isEmpty()) {
+                quantityStr = "1";
             }
 
             try {
                 int quantity = Integer.parseInt(quantityStr);
                 double price = priceStr.isEmpty() ? 0.0 : Double.parseDouble(priceStr);
+
+                if (category.isEmpty()) {
+                    category = "General";
+                }
 
                 product.setName(name);
                 product.setQuantity(quantity);
@@ -241,14 +258,14 @@ public class ManageProductsActivity extends AppCompatActivity {
                 product.setNotes(notes);
 
                 if (productManager.updateProduct(product)) {
-                    Toast.makeText(this, "Product updated successfully", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "✓ Product updated: " + name, Toast.LENGTH_SHORT).show();
                     loadProducts();
                     updateStatistics();
                 } else {
                     Toast.makeText(this, "Failed to update product", Toast.LENGTH_SHORT).show();
                 }
             } catch (NumberFormatException e) {
-                Toast.makeText(this, "Please enter valid numbers", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Please enter valid numbers for quantity and price", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -259,10 +276,10 @@ public class ManageProductsActivity extends AppCompatActivity {
     private void showDeleteProductDialog(Product product) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Product")
-                .setMessage("Are you sure you want to delete " + product.getName() + "?")
+                .setMessage("Are you sure you want to delete \"" + product.getName() + "\"?")
                 .setPositiveButton("Delete", (dialog, which) -> {
                     if (productManager.deleteProduct(product.getId())) {
-                        Toast.makeText(this, "Product deleted", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "✓ Deleted: " + product.getName(), Toast.LENGTH_SHORT).show();
                         loadProducts();
                         updateStatistics();
                     } else {
@@ -276,7 +293,8 @@ public class ManageProductsActivity extends AppCompatActivity {
     private void toggleProductPurchase(Product product) {
         product.setPurchased(!product.isPurchased());
         if (productManager.updateProduct(product)) {
-            Toast.makeText(this, "Product status updated", Toast.LENGTH_SHORT).show();
+            String status = product.isPurchased() ? "purchased" : "not purchased";
+            Toast.makeText(this, "✓ Marked as " + status + ": " + product.getName(), Toast.LENGTH_SHORT).show();
             loadProducts();
             updateStatistics();
         } else {

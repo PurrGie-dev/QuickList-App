@@ -1,9 +1,12 @@
 package com.esb.quicklist.management;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.esb.quicklist.utilities.AuthManager;
@@ -53,13 +56,35 @@ public class ManageListsActivity extends AppCompatActivity {
                 sb.append(index++).append(". ").append(list.getListName())
                         .append("\nCode: ").append(list.getListCode())
                         .append("\nMembers: ").append(list.getMemberCount())
-                        .append("\n");
-
-                // Add action buttons as clickable text
-                sb.append("[Manage] - [View Members] - [Share Code]\n\n");
+                        .append("\n\n");
             }
         }
 
         listsText.setText(sb.toString());
+
+        // Make the TextView clickable to show a selection dialog
+        listsText.setOnClickListener(v -> {
+            if (!createdLists.isEmpty()) {
+                showListSelectionDialog(createdLists);
+            }
+        });
+    }
+
+    private void showListSelectionDialog(List<ShoppingList> lists) {
+        String[] listNames = new String[lists.size()];
+        for (int i = 0; i < lists.size(); i++) {
+            listNames[i] = (i + 1) + ". " + lists.get(i).getListName() +
+                    " (" + lists.get(i).getListCode() + ")";
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Select List to Manage")
+                .setItems(listNames, (dialog, which) -> {
+                    Intent intent = new Intent(ManageListsActivity.this, ManageListActivity.class);
+                    intent.putExtra("LIST_CODE", lists.get(which).getListCode());
+                    startActivity(intent);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 }

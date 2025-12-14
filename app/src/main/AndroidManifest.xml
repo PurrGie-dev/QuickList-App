@@ -32,7 +32,7 @@
 
         <!-- ForgotPassword Activity -->
         <activity
-            android:name=".activities.ForgotPasswordActivity"
+            android:name=".ForgotPasswordActivity"
             android:exported="false" />
 
         <!-- CreateList Activity -->

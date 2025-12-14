@@ -10,19 +10,23 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.esb.quicklist.utilities.AuthManager;
 import com.esb.quicklist.utilities.ProductManager;
 import com.esb.quicklist.R;
 import com.esb.quicklist.models.Product;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class ManageCategoriesActivity extends AppCompatActivity {
 
     private LinearLayout categoriesContainer;
     private Button backButton;
     private Button addCategoryButton;
+    private AuthManager authManager;
     private ProductManager productManager;
     private String currentListCode;
     private List<String> categories = new ArrayList<>();
@@ -32,6 +36,7 @@ public class ManageCategoriesActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_manage_categories);
 
+        authManager = new AuthManager(this);
         productManager = new ProductManager(this);
         currentListCode = getIntent().getStringExtra("LIST_CODE");
 
@@ -59,13 +64,26 @@ public class ManageCategoriesActivity extends AppCompatActivity {
 
     private void loadCategories() {
         categoriesContainer.removeAllViews();
-        categories = productManager.getCategoriesForList(currentListCode);
+
+        // Get unique categories from products
+        List<Product> products = productManager.getProductsForList(currentListCode);
+        Set<String> uniqueCategories = new HashSet<>();
+
+        for (Product product : products) {
+            String category = product.getCategory().trim();
+            if (!category.isEmpty() && !category.equals("General") && !category.equals("system")) {
+                uniqueCategories.add(category);
+            }
+        }
+
+        categories = new ArrayList<>(uniqueCategories);
 
         if (categories.isEmpty()) {
             TextView emptyText = new TextView(this);
-            emptyText.setText(getString(R.string.no_categories_message));
+            emptyText.setText("No categories yet. Add some products with categories first!");
             emptyText.setPadding(16, 16, 16, 16);
             emptyText.setTextSize(16);
+            emptyText.setGravity(View.TEXT_ALIGNMENT_CENTER);
             categoriesContainer.addView(emptyText);
             return;
         }
@@ -94,7 +112,7 @@ public class ManageCategoriesActivity extends AppCompatActivity {
                 count++;
             }
         }
-        productCountTextView.setText(getString(R.string.products_count, count));
+        productCountTextView.setText(count + " product(s)");
 
         // Setup button listeners
         String finalCategory = category;
@@ -106,16 +124,22 @@ public class ManageCategoriesActivity extends AppCompatActivity {
 
     private void showAddCategoryDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(getString(R.string.add_category));
+        builder.setTitle("Add New Category");
 
         final EditText input = new EditText(this);
-        input.setHint(getString(R.string.category_name));
+        input.setHint("Category name (e.g., Groceries, Electronics)");
         builder.setView(input);
 
-        builder.setPositiveButton(getString(R.string.add), (dialog, which) -> {
+        builder.setPositiveButton("Add Category", (dialog, which) -> {
             String categoryName = input.getText().toString().trim();
+
             if (categoryName.isEmpty()) {
                 Toast.makeText(this, "Please enter a category name", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (categoryName.equalsIgnoreCase("system")) {
+                Toast.makeText(this, "Category name 'system' is reserved", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -124,118 +148,147 @@ public class ManageCategoriesActivity extends AppCompatActivity {
                 return;
             }
 
-            // Add a product with this category to save it
+            // Add a dummy product with this category to create it
+            String currentUser = authManager.getCurrentUser();
             Product dummyProduct = new Product(
                     "Category Placeholder",
                     categoryName,
                     1,
-                    "system",
+                    currentUser,
                     currentListCode,
-                    "Category placeholder",
+                    "Auto-generated category placeholder",
                     0.0
             );
 
             if (productManager.addProduct(dummyProduct)) {
-                Toast.makeText(this, "Category added", Toast.LENGTH_SHORT).show();
-                // Now delete the dummy product
+                // Now immediately delete the dummy product
                 productManager.deleteProduct(dummyProduct.getId());
+
+                Toast.makeText(this, "✓ Category added: " + categoryName, Toast.LENGTH_SHORT).show();
                 loadCategories();
             } else {
                 Toast.makeText(this, "Failed to add category", Toast.LENGTH_SHORT).show();
             }
         });
 
-        builder.setNegativeButton(getString(R.string.cancel), null);
+        builder.setNegativeButton("Cancel", null);
         builder.show();
     }
 
     private void showEditCategoryDialog(String oldCategory) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(getString(R.string.edit_category));
+        builder.setTitle("Edit Category: " + oldCategory);
 
         final EditText input = new EditText(this);
         input.setText(oldCategory);
         builder.setView(input);
 
-        builder.setPositiveButton(getString(R.string.save), (dialog, which) -> {
+        builder.setPositiveButton("Save Changes", (dialog, which) -> {
             String newCategory = input.getText().toString().trim();
+
             if (newCategory.isEmpty()) {
                 Toast.makeText(this, "Please enter a category name", Toast.LENGTH_SHORT).show();
                 return;
             }
 
             if (newCategory.equals(oldCategory)) {
-                return; // No change
-            }
-
-            if (categories.contains(newCategory)) {
-                Toast.makeText(this, "Category already exists", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "No changes made", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // Update all products with this category
+            if (newCategory.equalsIgnoreCase("system")) {
+                Toast.makeText(this, "Category name 'system' is reserved", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (categories.contains(newCategory)) {
+                Toast.makeText(this, "Category '" + newCategory + "' already exists", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Update all products with the old category to the new category
             List<Product> products = productManager.getProductsForList(currentListCode);
             boolean updated = false;
+            int updatedCount = 0;
 
             for (Product product : products) {
                 if (product.getCategory().equals(oldCategory)) {
                     product.setCategory(newCategory);
                     if (productManager.updateProduct(product)) {
                         updated = true;
+                        updatedCount++;
                     }
                 }
             }
 
             if (updated) {
-                Toast.makeText(this, "Category updated", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "✓ Updated " + updatedCount + " product(s) to category: " + newCategory, Toast.LENGTH_SHORT).show();
                 loadCategories();
             } else {
                 Toast.makeText(this, "No products found in this category", Toast.LENGTH_SHORT).show();
             }
         });
 
-        builder.setNegativeButton(getString(R.string.cancel), null);
+        builder.setNegativeButton("Cancel", null);
         builder.show();
     }
 
     private void showDeleteCategoryDialog(String category) {
-        // Check if category has products
+        // Count products in this category
         List<Product> products = productManager.getProductsForList(currentListCode);
         int productCount = (int) products.stream().filter(product -> product.getCategory().equals(category)).count();
 
         String message;
         if (productCount > 0) {
             message = String.format(Locale.getDefault(),
-                    "This category has %d product(s).\n" +
-                            "Deleting it will remove the category from all these products.\n" +
-                            "Continue?", productCount);
+                    "⚠️ This category has %d product(s).\n\n" +
+                            "What would you like to do?",
+                    productCount);
         } else {
             message = "Delete this category?";
         }
 
-        new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.delete_category))
-                .setMessage(message)
-                .setPositiveButton(getString(R.string.delete), (dialog, which) -> {
-                    // Update all products with this category to "Other"
-                    boolean updated = false;
-                    for (Product product : products) {
-                        if (product.getCategory().equals(category)) {
-                            product.setCategory("Other");
-                            if (productManager.updateProduct(product)) {
-                                updated = true;
-                            }
-                        }
-                    }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle("Delete Category: " + category);
 
-                    if (updated || productCount == 0) {
-                        Toast.makeText(this, "Category deleted", Toast.LENGTH_SHORT).show();
+        if (productCount > 0) {
+            // If there are products, show options
+            builder.setMessage(message)
+                    .setPositiveButton("Move to 'General' & Delete", (dialog, which) -> {
+                        moveProductsToGeneralAndDeleteCategory(category, productCount);
+                    })
+                    .setNegativeButton("Cancel", null);
+        } else {
+            // If no products, just delete
+            builder.setMessage(message)
+                    .setPositiveButton("Delete", (dialog, which) -> {
+                        Toast.makeText(this, "✓ Category deleted: " + category, Toast.LENGTH_SHORT).show();
                         loadCategories();
-                    } else {
-                        Toast.makeText(this, "Failed to delete category", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton(getString(R.string.cancel), null)
-                .show();
+                    })
+                    .setNegativeButton("Cancel", null);
+        }
+
+        builder.show();
+    }
+
+    private void moveProductsToGeneralAndDeleteCategory(String category, int productCount) {
+        List<Product> products = productManager.getProductsForList(currentListCode);
+        int movedCount = 0;
+
+        for (Product product : products) {
+            if (product.getCategory().equals(category)) {
+                product.setCategory("General");
+                if (productManager.updateProduct(product)) {
+                    movedCount++;
+                }
+            }
+        }
+
+        if (movedCount > 0) {
+            Toast.makeText(this, "✓ Moved " + movedCount + " product(s) to 'General' and deleted category: " + category, Toast.LENGTH_SHORT).show();
+            loadCategories();
+        } else {
+            Toast.makeText(this, "Failed to update products", Toast.LENGTH_SHORT).show();
+        }
     }
 }
