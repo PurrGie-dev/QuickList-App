@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/welcomeText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/adminInfoText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id="@+id/createListBtn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Create New List"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/manageListsBtn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Manage My Lists"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/viewListsBtn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="View All Lists"
+            android:layout_marginBottom="32dp"/>
+    </LinearLayout>
+</ScrollView>

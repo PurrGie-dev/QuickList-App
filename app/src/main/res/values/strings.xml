@@ -1,0 +1,31 @@
+<resources>
+    <string name="app_name">Shopping List</string>
+    <string name="app_logo">App Logo</string>
+    <string name="login">Login</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="invalid_email">Please enter a valid email</string>
+    <string name="invalid_password">Password must be at least 6 characters</string>
+    <string name="sign_up">Don\'t have an account? Sign Up</string>
+    <string name="forgot_password">Forgot Password?</string>
+    <string name="password_requirements">Password Requirements:\n• 8+ characters\n• At least 1 letter\n• At least 1 number\n• At least 1 symbol (@#$%^&amp;+=)</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="add">Add</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="products_count">%d products</string>
+    <string name="products_count_default">0 products</string> <!-- ADD THIS -->
+    <string name="code_format">Code: %s</string>
+    <string name="quantity_format">Qty: %d</string>
+    <string name="added_by_format">Added by: %s</string>
+    <string name="delete_user_confirmation">Are you sure you want to remove %s from this list?</string>
+    <string name="user_deleted_message">User deleted: %s</string>
+    <string name="no_categories_message">No categories yet. Add some categories!</string>
+    <string name="add_category">Add New Category</string>
+    <string name="edit_category">Edit Category</string>
+    <string name="delete_category">Delete Category</string>
+    <string name="category_name">Category Name</string>
+    <string name="signup">Sign Up</string>
+    <string name="create_account">Create Account</string>
+</resources>
